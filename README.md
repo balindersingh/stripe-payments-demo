@@ -5,7 +5,7 @@
 ## Config variables
 * SecretKey : secret key of your stripe account 
 * RedirectUrl : the url where this application will be hosted publicly so that stripe can use it as callback url
-## Development
+## Development notes
 * Let's start listening on 5000 port to ngrok endpoint (you can change it in settings files to listen on diffrent port)
 * ```./ngrok http 5000```
 * Make sure you update Stripe settings appropriately in appsettings.json
