@@ -1,0 +1,218 @@
+@{
+ViewData["Title"] = "Home Page";
+}
+
+<div class="text-center">
+    <h1 class="display-4">Welcome</h1>
+    <p>Learn about <a href="https://docs.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
+
+</div>
+<div class="text-center">
+    <div id="message"></div>
+</div>
+<div class="row">
+    <div class="col-md-8">
+        <input type="number" id="CardAmount" class="form-control mb-4" placeholder="Amount">
+        <input type="textbox" id="CardFullName" class="form-control mb-4" placeholder="Name on card">
+        <input type="textbox" id="CardNumber" class="form-control mb-4" placeholder="Credit Card">
+        <div class="row">
+            <div class="col-md-6 mb-4">
+                <input type="textbox" id="CardCVV" class="form-control" placeholder="CVV">
+                <select class="form-control" data-requiredmessage="required" id="CardRecurringFrequency" name="CardRecurringFrequency">
+                    <option value="">
+                        --Select Frequency for Recurring--
+                    </option>
+                    <option value="day">Daily</option>
+                    <option value="week">Weekly</option>
+                    <option value="month">Monthly</option>
+                    <option value="year">Yearly</option>
+                </select>
+            </div>
+            <div class="col-md-6 mb-4">
+                <select class="form-control" data-requiredmessage="required" id="CardMonth" name="CardMonth">
+                    <option value="">
+                        --MM--
+                    </option>
+                    <option value="01">01</option>
+                    <option value="02">02</option>
+                    <option value="03">03</option>
+                    <option value="04">04</option>
+                    <option value="05">05</option>
+                    <option value="06">06</option>
+                    <option value="07">07</option>
+                    <option value="08">08</option>
+                    <option value="09">09</option>
+                    <option value="10">10</option>
+                    <option value="11">11</option>
+                    <option value="12">12</option>
+                </select>
+                <select class="form-control" data-requiredmessage="required" id="CardYear">
+                    <option value="">
+                        --YYYY--
+                    </option>
+                    <option value="2019">2019</option>
+                    <option value="2020">2020</option>
+                    <option value="2021">2021</option>
+                    <option value="2022">2022</option>
+                    <option value="2023">2023</option>
+                    <option value="2024">2024</option>
+                    <option value="2025">2025</option>
+                    <option value="2026">2026</option>
+                    <option value="2027">2027</option>
+                    <option value="2028">2028</option>
+                    <option value="2029">2029</option>
+                    <option value="2030">2030</option>
+                    <option value="2031">2031</option>
+                    <option value="2032">2032</option>
+                    <option value="2033">2033</option>
+                </select>
+            </div>
+        </div>
+
+        <button class="btn btn-primary btn-block" onclick="createPayment();" type="submit">Checkout</button>
+    </div>
+    <div class="col-md-4">
+        <div class="alert alert-primary" role="alert">
+            <p>Test card: 4242424242424242</p>
+            <p>3D Secure Test card: 4000000000003220</p>
+        </div>
+    </div>
+</div>
+<div id="paymentDialog" style="display:none;" title="Payment confirmation">
+    <div id="paymentConfirmationContainer"></div>
+
+</div>
+<script>
+    function renderStripeUI(redirectUrl, paymentIntentId) {
+        var iframe = document.createElement('iframe');
+        iframe.src = redirectUrl; //paymentIntent.next_action.redirect_to_url.url;
+        iframe.width = 600;
+        iframe.setAttribute("payment-intent-id", paymentIntentId);
+        iframe.height = 400;
+        $('#paymentConfirmationContainer').html(iframe);
+        $("#paymentDialog").dialog();
+    }
+
+    function createPayment() {
+        let recurringFrequencyInterval = "";
+        if ($("#CardRecurringFrequency").val()) {
+            recurringFrequencyInterval = $("#CardRecurringFrequency").val();
+        }
+        let customerName = "";
+        if ($("#CardFullName").val()) {
+            customerName = $("#CardFullName").val();
+        }
+        var cardObj = {
+            cardNumber: $("#CardNumber").val(),
+            cardExpiryMonth: parseFloat($("#CardMonth").val()),
+            cardExpiryYear: parseFloat($("#CardYear").val()),
+            cardCVC: $("#CardCVV").val(),
+            amount: parseFloat($("#CardAmount").val()),
+            recurringFrequency: recurringFrequencyInterval,
+            fullName: customerName
+        }
+        updateMessage('Creating payment intent...','alert-warning');
+        $.ajax({
+            url: '/api/stripe/CreatePayment/',
+            type: 'post',
+            dataType: 'json',
+            contentType: 'application/json',
+            success: function (data) {
+                $('#message').html('');
+                console.log(data);
+                var responseInfo = data; //JSON.parse(data);
+                var messageText = '';
+                var className = '';
+                if (responseInfo.requireAction !== undefined && responseInfo.requireAction) {
+                    // requires_action
+                    renderStripeUI(responseInfo.redirectUrl, responseInfo.paymentIntentId);
+                } else if (responseInfo.success !== undefined) {
+                    messageText = 'Payment successfully confirmed';
+                    className = 'alert-success';
+                } else if (responseInfo.error !== undefined) {
+                    messageText = responseInfo.error;
+                    className = 'alert-danger';
+                } else {
+                    messageText = 'Something went wrong while creating payment';
+                    className = 'alert-danger';
+                }
+                updateMessage(messageText, className);
+            },
+            error: function (res) {
+                updateMessage('Something went wrong:'+res.statusText,'alert-danger');
+            },
+            data: JSON.stringify(cardObj)
+        });
+    }
+
+    function confirmPayment(paymentIntentId) {
+        console.log('CONFIRM paymentIntentId:' + paymentIntentId);
+        var paymentMethodObj = {};
+        if (paymentIntentId !== undefined) {
+            paymentMethodObj["paymentIntentId"] = paymentIntentId;
+        }
+        updateMessage('Confirming payment intent...','alert-warning');
+        $.ajax({
+            url: '/api/stripe/ConfirmPayment/',
+            type: 'post',
+            dataType: 'json',
+            contentType: 'application/json',
+            success: function (data) {
+                $('#message').html('');
+                var responseInfo = data; //JSON.parse(data);
+                console.log(responseInfo);
+                console.log(responseInfo.redirectUrl);
+                var messageText = '';
+                var className = '';
+                if (responseInfo.requires_action !== undefined && responseInfo.requires_action) {
+                    // requires_action
+                    renderStripeUI(responseInfo.redirectUrl, responseInfo.payment_intent_id);
+                } else if (responseInfo.success !== undefined) {
+                    messageText = 'Payment successfully confirmed';
+                    className = 'alert-success';
+                } else if (responseInfo.error !== undefined) {
+                    messageText = responseInfo.error;
+                    className = 'alert-danger';
+                } else {
+                    messageText = 'Something went wrong while creating payment';
+                    className = 'alert-danger';
+                }
+                updateMessage(messageText, className);
+            },
+            error: function (res) {
+                updateMessage('Something went wrong:'+res.statusText,'alert-danger');
+            },
+            data: JSON.stringify(paymentMethodObj)
+        });
+    }
+
+    function on3DSComplete(ev) {
+        console.log('on3DSComplete');
+        // Hide the 3DS UI
+        var paymentIntentId;
+        if ($('#paymentConfirmationContainer iframe').length > 0) {
+            paymentIntentId = $('#paymentConfirmationContainer iframe')[0].getAttribute('payment-intent-id');
+        }
+        $('#paymentConfirmationContainer').html('');
+        $('#paymentDialog').dialog('close');
+        console.log('on3DSComplete paymentIntentId:' + paymentIntentId)
+        confirmPayment(paymentIntentId);
+    }
+
+    function updateMessage(messageText, className) {
+        $('#message').html(messageText);
+        $('#message').removeClass();
+        if (className !== '') {
+            $('#message').addClass(className);
+        } else {
+            $('#message').removeClass();
+        }
+    }
+    window.addEventListener('message', function(ev) {
+        
+    if (ev.data === '3DS-authentication-complete') {
+        console.log('3DS-authentication-complete');
+      on3DSComplete();
+    }
+  }, false);
+</script>
