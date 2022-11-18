@@ -22,6 +22,73 @@ namespace StripeApp.Services
             stripeSettingsOptions = new StripeSettingsOptions();
             this.configuration.GetSection(StripeSettingsOptions.StripeSettings).Bind(stripeSettingsOptions);
         }
+        public string ChargeCustomer(SetupIntentRequest setupIntentRequest)
+        {
+            if (string.IsNullOrEmpty(setupIntentRequest?.CustomerId))
+            {
+                throw new Exception("No customer Id found");
+            }
+            // Set your secret key. Remember to switch to your live secret key in production.
+            // See your keys here: https://dashboard.stripe.com/apikeys
+            StripeConfiguration.ApiKey = stripeSettingsOptions.SecretKey;
+
+            var options = new PaymentMethodListOptions
+            {
+                Customer = setupIntentRequest.CustomerId,
+                Type = "card",
+            };
+            var pmservice = new PaymentMethodService();
+            StripeList<PaymentMethod> paymentmethods = pmservice.List(options);
+            if(paymentmethods?.Data?.Count > 0)
+            {
+                PaymentMethod pm = paymentmethods?.Data[0];
+                try
+                {
+                    var service = new PaymentIntentService();
+                    var paymentIntentCreateOptions = new PaymentIntentCreateOptions
+                    {
+                        Amount = 1099,
+                        Currency = "cad",
+                        Customer = setupIntentRequest.CustomerId,
+                        PaymentMethod = pm.Id,
+                        Confirm = true,
+                        OffSession = true,
+                    };
+                    var response = service.Create(paymentIntentCreateOptions);
+                    return "Response:" + response.StripeResponse.Content;
+                }
+                catch (StripeException e)
+                {
+                    throw new Exception("Something went wrong while charging customer:" + e.StripeError.Error);
+                }
+            }
+            throw new Exception("No payment method found");
+        }
+        public SetupIntentResponse SetupIntent(SetupIntentRequest setupIntentRequest)
+        {
+            StripeConfiguration.ApiKey = stripeSettingsOptions.SecretKey;
+            if (string.IsNullOrEmpty(setupIntentRequest.CustomerId))
+            {
+                CustomerCreateOptions customerCreateOptions = new CustomerCreateOptions
+                {
+                    Description = string.IsNullOrEmpty(setupIntentRequest.CustomerName) ? "Customer " + DateTime.Now.ToString("yyyyMMddhhmmss") : setupIntentRequest.CustomerName
+                };
+                Customer customer = CreateCustomer(customerCreateOptions);
+                setupIntentRequest.CustomerId = customer.Id;
+            }
+
+            var options = new SetupIntentCreateOptions
+            {
+                Customer = setupIntentRequest.CustomerId,
+                PaymentMethodTypes = new List<string> { "card"},
+            };
+            var service = new SetupIntentService();
+            SetupIntent setupIntent = service.Create(options);
+            SetupIntentResponse setupIntentResponseObj = new SetupIntentResponse();
+            setupIntentResponseObj.ClientSecret = setupIntent.ClientSecret;
+            return setupIntentResponseObj;
+
+        }
         public PaymentResponse createPayment(CardInfo cardInfo)
         {
             try

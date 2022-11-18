@@ -20,6 +20,16 @@ namespace StripeApp.Controllers
             return View();
         }
 
+        public IActionResult SetupComplete()
+        {
+            return View();
+        }
+
+        public IActionResult Capture()
+        {
+            return View();
+        }
+
         [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
         public IActionResult Error()
         {

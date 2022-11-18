@@ -50,5 +50,23 @@ namespace StripeApp.Controllers
         { 
             return (new StripeService(this.configuration)).confirmPayment(confirmPaymentInfo);
         }
+
+        // POST api/stripe/getSecret
+        [Route("[action]")]
+        [HttpPost]
+        public object getSecret([FromBody] SetupIntentRequest setupIntentRequest)
+        {
+            SetupIntentResponse setupIntentResponse = (new StripeService(this.configuration)).SetupIntent(setupIntentRequest);
+           return new JsonResult(new  { setupIntentResponse= setupIntentResponse,redirectUrl= this.stripeSettingsOptions.RedirectUrl});
+        }
+
+        // POST api/stripe/chargeCustomer
+        [Route("[action]")]
+        [HttpPost]
+        public object chargeCustomer([FromBody] SetupIntentRequest setupIntentRequest)
+        {
+            string response = (new StripeService(this.configuration)).ChargeCustomer(setupIntentRequest);
+            return new JsonResult(new { response = response });
+        }
     }
 }
