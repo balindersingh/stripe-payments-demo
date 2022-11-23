@@ -32,13 +32,21 @@ namespace StripeApp.Services
             // See your keys here: https://dashboard.stripe.com/apikeys
             StripeConfiguration.ApiKey = stripeSettingsOptions.SecretKey;
 
-            var options = new PaymentMethodListOptions
+            var pmoptions = new PaymentMethodListOptions
             {
                 Customer = setupIntentRequest.CustomerId,
                 Type = "card",
+                
+            };
+            var options = new CustomerListPaymentMethodsOptions
+            {
+                Type = "card",
+
             };
             var pmservice = new PaymentMethodService();
-            StripeList<PaymentMethod> paymentmethods = pmservice.List(options);
+            var customerService = new CustomerService();
+            StripeList<PaymentMethod> paymentmethods = customerService.ListPaymentMethods(setupIntentRequest.CustomerId, options);
+           // StripeList<PaymentMethod> paymentmethods = pmservice.List(options);
             if(paymentmethods?.Data?.Count > 0)
             {
                 PaymentMethod pm = paymentmethods?.Data[0];
@@ -59,10 +67,14 @@ namespace StripeApp.Services
                 }
                 catch (StripeException e)
                 {
-                    throw new Exception("Something went wrong while charging customer:" + e.StripeError.Error);
+                    return "Response:Something went wrong while charging customer => Stripe Error:" + e.StripeError+ "=> StripeResponse: " + e.StripeResponse + "=> Message: " + e.Message;
+                }
+                catch(Exception ee)
+                {
+                    return "Response:Something went wrong while charging customer:" + ee.Message+" => "+ee.StackTrace;
                 }
             }
-            throw new Exception("No payment method found");
+            return "Response: No payment method found";
         }
         public SetupIntentResponse SetupIntent(SetupIntentRequest setupIntentRequest)
         {

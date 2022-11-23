@@ -21,8 +21,8 @@
 
     // Retrieve the SetupIntent
     stripe.retrieveSetupIntent(clientSecret).then(({ setupIntent }) => {
-        const message = document.querySelector('#message')
-
+        const message = document.querySelector('#message');
+        console.log('[retrieveSetupIntent]', setupIntent);
         // Inspect the SetupIntent `status` to indicate the status of the payment
         // to your customer.
         //
