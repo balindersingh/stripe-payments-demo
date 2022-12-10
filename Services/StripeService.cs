@@ -50,10 +50,12 @@ namespace StripeApp.Services
                     {
                         Amount = 1099,
                         Currency = "cad",
+                        Mandate = "mandate_1MDNlNIkwjzpyJ7waH3GMEFW",
                         Customer = setupIntentRequest.CustomerId,
                         PaymentMethod = pm.Id,
                         Confirm = true,
                         OffSession = true,
+                        PaymentMethodTypes = new List<string> { setupIntentRequest.PaymentMethodType }
                     };
                     var response = service.Create(paymentIntentCreateOptions);
                     return "Response:" + response.StripeResponse.Content;
