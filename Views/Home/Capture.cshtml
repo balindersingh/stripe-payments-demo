@@ -12,6 +12,15 @@ ViewData["Title"] = "Home Page";
     <div class="col-md-8">
         <div class="col-md-12 mt-5">
             <input type="textbox" required id="CardFullName" class="form-control mb-4" placeholder="Name on card">
+            <input type="textbox" required id="emailfield" class="form-control mb-4" placeholder="Email">
+
+
+    
+            <select id="MethodType" class="form-select form-control mb-4" aria-label="Select card type">
+                <option selected value="card">Credit Card</option>
+                <option value="us_bank_account">ACH debit</option>
+                <option value="acss_debit">ACSS debit</option>
+            </select>
             <button class="btn btn-primary btn-block" onclick="createCustomerAndLoadForm();" type="submit">Setup Customer</button>
 
         </div>
@@ -31,6 +40,7 @@ ViewData["Title"] = "Home Page";
                 </div>
             </form>
         </div>
+        
     </div>
     <div class="col-md-4">
         <div class="alert alert-primary" role="alert">
@@ -77,9 +87,12 @@ ViewData["Title"] = "Home Page";
             // Render the form using the clientSecret
         })();
     }
-    function createCustomerAndLoadForm(){
+    function createCustomerAndLoadForm() {
+        let paymentMethodType = $("#MethodType").val();
+        console.log('paymentMethodType', paymentMethodType);
         var customerObj = {
-            customerName: $("#CardFullName").val()
+            customerName: $("#CardFullName").val(),
+            paymentMethodType : $("#MethodType").val()
         }
         $.ajax({
             url: '/api/stripe/getSecret/',
@@ -99,20 +112,29 @@ ViewData["Title"] = "Home Page";
             data: JSON.stringify(customerObj)
         });
     }
-    function loadPaymentElements(client_secret){
-        clientSecret = client_secret;
-        const options = {
-            clientSecret: clientSecret,
-            // Fully customizable with appearance API.
-            appearance: {/*...*/ },
-        };
+    async function loadPaymentElements(client_secret) {
+        const customerName = $('#CardFullName').val();
+        const emailField = $('#emailfield').val();
+        let paymentMethodType = $("#MethodType").val();
+        if (paymentMethodType=="card") {
+            clientSecret = client_secret;
+            const options = {
+                clientSecret: clientSecret,
+                // Fully customizable with appearance API.
+                appearance: {/*...*/ },
+            };
 
-        // Set up Stripe.js and Elements to use in checkout form, passing the client secret obtained in step 3
-        stripeElement = stripe.elements(options);
+            // Set up Stripe.js and Elements to use in checkout form, passing the client secret obtained in step 3
+            stripeElement = stripe.elements(options);
 
-        // Create and mount the Payment Element
-        paymentElement = stripeElement.create('payment');
-        paymentElement.mount('#payment-element');
+            // Create and mount the Payment Element
+            paymentElement = stripeElement.create('payment');
+            paymentElement.mount('#payment-element');
+        } else if (paymentMethodType =="us_bank_account") {
+            await loadACHForm(client_secret,customerName,emailField);
+        } else if (paymentMethodType == "acss_debit"){
+            await loadACSSDebit(client_secret,customerName,emailField);
+        }
     }
     function submitForm(){
         const form = document.getElementById('payment-form');
@@ -145,9 +167,78 @@ ViewData["Title"] = "Home Page";
             }
         });
     }
+
+    function showMessage(message) {
+
+        const messageContainer = document.querySelector('#error-message');
+        if (message) {
+            messageContainer.textContent = message;
+        } else {
+            messageContainer.textContent = '';
+        }
+    }
+
+    async function loadACHForm(clientSecret, customerName, emailAddress) {
+        
+
+        // Calling this method will open the instant verification dialog.
+        const {setupIntent, error} = await stripe.collectBankAccountForSetup({
+            clientSecret: clientSecret,
+            params: {
+                payment_method_type: 'us_bank_account',
+                payment_method_data: {
+                    billing_details: {
+                        name: customerName,
+                        email: emailAddress,
+                    },
+                },
+            },
+            expand: ['payment_method'],
+        });
+                if (error) {
+                    console.error(error.message);
+                    showMessage('ERROR:'+error.message);
+                    // PaymentMethod collection failed for some reason.
+                } else if (setupIntent.status === 'requires_payment_method') {
+                    showMessage('requires_payment_method');
+                    // Customer canceled the hosted verification modal. Present them with other
+                    // payment method type options.
+                } else if (setupIntent.status === 'requires_confirmation') {
+                    // We collected an account - possibly instantly verified, but possibly
+                    // manually-entered. Display payment method details and mandate text
+                    // to the customer and confirm the intent once they accept
+                    // the mandate.
+                    showMessage('requires_confirmation');
+                   // confirmationForm.show();
+                }
+            
+    }
+    async function loadACSSDebit(clientSecret, customerName, emailAddress){
+        const {setupIntent, error} = await stripe.confirmAcssDebitSetup(
+            clientSecret,
+            {
+            payment_method: {
+                billing_details: {
+                name: customerName,
+                email: emailAddress,
+                },
+            },
+            }
+        );
+
+        if (error) {
+            // Inform the customer that there was an error.
+            console.log(error.message);
+        } else {
+            // Handle next step based on SetupIntent's status.
+            console.log("SetupIntent ID: " + setupIntent.id);
+            console.log("SetupIntent status: " + setupIntent.status);
+        }
+    }
     function chargeCustomer() {
         var customerObj = {
-            customerId: $("#CustomerId").val()
+            customerId: $("#CustomerId").val(),
+            paymentMethodType : $("#MethodType").val()
         }
         $.ajax({
             url: '/api/stripe/chargeCustomer/',

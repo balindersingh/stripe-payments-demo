@@ -13,5 +13,8 @@ namespace StripeApp.Models
         [JsonProperty("customerId")]
         public string CustomerId { get; set; }
 
+        [JsonProperty("paymentMethodType")]
+        public string PaymentMethodType { get; set; }
+
     }
 }

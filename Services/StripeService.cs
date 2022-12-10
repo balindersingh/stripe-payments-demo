@@ -31,19 +31,12 @@ namespace StripeApp.Services
             // Set your secret key. Remember to switch to your live secret key in production.
             // See your keys here: https://dashboard.stripe.com/apikeys
             StripeConfiguration.ApiKey = stripeSettingsOptions.SecretKey;
-
-            var pmoptions = new PaymentMethodListOptions
-            {
-                Customer = setupIntentRequest.CustomerId,
-                Type = "card",
-                
-            };
+            
             var options = new CustomerListPaymentMethodsOptions
             {
-                Type = "card",
+                Type = setupIntentRequest.PaymentMethodType,
 
             };
-            var pmservice = new PaymentMethodService();
             var customerService = new CustomerService();
             StripeList<PaymentMethod> paymentmethods = customerService.ListPaymentMethods(setupIntentRequest.CustomerId, options);
            // StripeList<PaymentMethod> paymentmethods = pmservice.List(options);
@@ -89,17 +82,72 @@ namespace StripeApp.Services
                 setupIntentRequest.CustomerId = customer.Id;
             }
 
-            var options = new SetupIntentCreateOptions
-            {
-                Customer = setupIntentRequest.CustomerId,
-                PaymentMethodTypes = new List<string> { "card"},
-            };
+            var options = getSetupIntentCreateOptions(setupIntentRequest);
             var service = new SetupIntentService();
             SetupIntent setupIntent = service.Create(options);
             SetupIntentResponse setupIntentResponseObj = new SetupIntentResponse();
             setupIntentResponseObj.ClientSecret = setupIntent.ClientSecret;
             return setupIntentResponseObj;
 
+        }
+
+        public SetupIntentCreateOptions getSetupIntentCreateOptions(SetupIntentRequest setupIntentRequest)
+        {
+            if (setupIntentRequest.PaymentMethodType == "card")
+            {
+                return new SetupIntentCreateOptions
+                {
+                    Customer = setupIntentRequest.CustomerId,
+                    PaymentMethodTypes = new List<string> { "card" },
+                };
+            }
+            else if (setupIntentRequest.PaymentMethodType == "us_bank_account")
+            {
+                return new SetupIntentCreateOptions
+                {
+                    Customer = setupIntentRequest.CustomerId,
+                    PaymentMethodTypes = new List<string> { "us_bank_account" }
+                };
+            }
+            else if (setupIntentRequest.PaymentMethodType == "acss_debit")
+            {
+                return new SetupIntentCreateOptions
+                {
+                    Customer = setupIntentRequest.CustomerId,
+                    PaymentMethodTypes = new List<string> { "acss_debit" },
+                    PaymentMethodOptions = new SetupIntentPaymentMethodOptionsOptions
+                    {
+                        AcssDebit = new SetupIntentPaymentMethodOptionsAcssDebitOptions
+                        {
+                            Currency = "cad",
+                            MandateOptions = new SetupIntentPaymentMethodOptionsAcssDebitMandateOptionsOptions
+                            {
+                                PaymentSchedule = "sporadic",
+                                TransactionType = "personal",
+                            },
+                        },
+                    },
+                };
+            }
+            else if (setupIntentRequest.PaymentMethodType == "achdebit_expanded")
+            {
+                return new SetupIntentCreateOptions
+                {
+                    Customer = setupIntentRequest.CustomerId,
+                    PaymentMethodTypes = new List<string> { "us_bank_account" },
+                    PaymentMethodOptions = new SetupIntentPaymentMethodOptionsOptions
+                    {
+                        UsBankAccount = new SetupIntentPaymentMethodOptionsUsBankAccountOptions
+                        {
+                            FinancialConnections = new SetupIntentPaymentMethodOptionsUsBankAccountFinancialConnectionsOptions
+                            {
+                                Permissions = new List<string> { "payment_method", "balances" },
+                            },
+                        },
+                    },
+                };
+            }
+            return null;
         }
         public PaymentResponse createPayment(CardInfo cardInfo)
         {
