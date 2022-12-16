@@ -43,22 +43,45 @@ namespace StripeApp.Services
             if(paymentmethods?.Data?.Count > 0)
             {
                 PaymentMethod pm = paymentmethods?.Data[0];
+                string responseMessage = "paymentmethod => " + pm;
                 try
                 {
                     var service = new PaymentIntentService();
-                    var paymentIntentCreateOptions = new PaymentIntentCreateOptions
+                    PaymentIntentCreateOptions paymentIntentCreateOptions = null;
+                    if (pm.Type == "acss_debit")
                     {
-                        Amount = 1099,
-                        Currency = "cad",
-                        Mandate = "mandate_1MDNlNIkwjzpyJ7waH3GMEFW",
-                        Customer = setupIntentRequest.CustomerId,
-                        PaymentMethod = pm.Id,
-                        Confirm = true,
-                        OffSession = true,
-                        PaymentMethodTypes = new List<string> { setupIntentRequest.PaymentMethodType }
-                    };
-                    var response = service.Create(paymentIntentCreateOptions);
-                    return "Response:" + response.StripeResponse.Content;
+                        paymentIntentCreateOptions = new PaymentIntentCreateOptions
+                        {
+                            Amount = 1999,
+                            Currency = "cad",
+                            Mandate = setupIntentRequest.MandateId,
+                            Customer = setupIntentRequest.CustomerId,
+                            PaymentMethod = pm.Id,
+                            Confirm = true,
+                            OffSession = true,
+                            PaymentMethodTypes = new List<string> { setupIntentRequest.PaymentMethodType }
+                        };
+                    }
+                    else if (pm.Type == "card")
+                    {
+                        paymentIntentCreateOptions = new PaymentIntentCreateOptions
+                        {
+                            Amount = 1999,
+                            Currency = "cad",
+                            Customer = setupIntentRequest.CustomerId,
+                            PaymentMethod = pm.Id,
+                            Confirm = true,
+                            OffSession = true,
+                            PaymentMethodTypes = new List<string> { setupIntentRequest.PaymentMethodType }
+                        };
+                    }
+                    if (paymentIntentCreateOptions !=null)
+                    {
+                        var response = service.Create(paymentIntentCreateOptions);
+                        responseMessage+= "<br/> Response:" + response.StripeResponse.Content;
+                        return responseMessage;
+                    }
+                    return "Response: No payment method type found";
                 }
                 catch (StripeException e)
                 {
@@ -78,8 +101,12 @@ namespace StripeApp.Services
             {
                 CustomerCreateOptions customerCreateOptions = new CustomerCreateOptions
                 {
-                    Description = string.IsNullOrEmpty(setupIntentRequest.CustomerName) ? "Customer " + DateTime.Now.ToString("yyyyMMddhhmmss") : setupIntentRequest.CustomerName
+                    Name = string.IsNullOrEmpty(setupIntentRequest.CustomerName) ? "Customer " + DateTime.Now.ToString("yyyyMMddhhmmss") : setupIntentRequest.CustomerName
                 };
+                if (!string.IsNullOrEmpty(setupIntentRequest.CustomerEmail))
+                {
+                    customerCreateOptions.Email = setupIntentRequest.CustomerEmail;
+                }
                 Customer customer = CreateCustomer(customerCreateOptions);
                 setupIntentRequest.CustomerId = customer.Id;
             }

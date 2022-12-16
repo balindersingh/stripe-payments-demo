@@ -25,11 +25,6 @@ ViewData["Title"] = "Home Page";
 
         </div>
         <div class="col-md-12 mt-5">
-            <input type="textbox" required id="CustomerId" class="form-control mb-4" placeholder="Customer Id">
-            <button class="btn btn-primary btn-block" onclick="chargeCustomer();" type="submit">Charge Customer</button>
-
-        </div>
-        <div class="col-md-12 mt-5">
             <form id="payment-form">
                 <div id="payment-element">
                     <!-- Elements will create form elements here -->
@@ -59,6 +54,7 @@ ViewData["Title"] = "Home Page";
 </div>
 <div id="paymentDialog" style="display:none;" title="Payment confirmation">
     <div id="setupCompleteContainer"></div>
+    <button id="acssbtn" style="display:none;" class="btn btn-primary btn-block" onclick="verifyACSSPaymentMethod();" type="submit">Close</button>
 
 </div>
 <script>
@@ -68,7 +64,12 @@ ViewData["Title"] = "Home Page";
         iframe.width = 600;
         iframe.height = 400;
         $('#setupCompleteContainer').html(iframe);
-        $("#paymentDialog").dialog();
+        $("#paymentDialog").dialog({
+            closeOnEscape: false,
+            open: function(event, ui) {
+                $(".ui-dialog-titlebar-close", ui.dialog || ui).hide();
+            }
+        });
     }
     // Set your publishable key: remember to change this to your live publishable key in production
     // See your keys here: https://dashboard.stripe.com/apikeys
@@ -213,8 +214,28 @@ ViewData["Title"] = "Home Page";
                 }
             
     }
+    async function verifyACSSPaymentMethod(){
+        /// TODO - setup intent is already succeded
+         event.preventDefault();
+         var clientSecret = document.getElementById('acssbtn').getAttribute('data-clientsecret');
+         const response = await stripe.verifyMicrodepositsForSetup(
+            clientSecret,
+            {
+             amounts: [32, 45],
+            }
+        );
+
+        if (response.error) {
+
+            console.log(response.error.message);
+            $('#message').html(error.message);
+        }else {
+            console.log("[verifyACSSPaymentMethod] SetupIntent status: " + response.setupIntent.status);
+            console.log(response.setupIntent);
+        }
+    }
     async function loadACSSDebit(clientSecret, customerName, emailAddress){
-        const {setupIntent, error} = await stripe.confirmAcssDebitSetup(
+        const response = await stripe.confirmAcssDebitSetup(
             clientSecret,
             {
             payment_method: {
@@ -226,35 +247,43 @@ ViewData["Title"] = "Home Page";
             }
         );
 
-        if (error) {
+        if (response.error) {
             // Inform the customer that there was an error.
             console.log(error.message);
+            $('#message').html(error.message);
         } else {
             // Handle next step based on SetupIntent's status.
-            console.log("SetupIntent ID: " + setupIntent.id);
-            console.log("SetupIntent status: " + setupIntent.status);
+            console.log("SetupIntent ID: " + response.setupIntent.id);
+            console.log("SetupIntent status: " + response.setupIntent.status);
+            
+            let setupIntent = response.setupIntent;
+            console.log(setupIntent);
+            if (setupIntent.status === "requires_action") {
+                if(setupIntent.next_action && setupIntent.next_action.type == "verify_with_microdeposits"){
+                    let stripeUrl = setupIntent.next_action.verify_with_microdeposits.hosted_verification_url
+                    renderStripeUI(stripeUrl);
+                    $('#acssbtn').show();
+                    document.getElementById('acssbtn').setAttribute('data-clientsecret',clientSecret);
+                }else {
+                     showMessage('requires_action something went wrong');
+                }
+
+            }
+             else   if (setupIntent.status === 'requires_payment_method') {
+                    showMessage('requires_payment_method');
+                    // Customer canceled the hosted verification modal. Present them with other
+                    // payment method type options.
+                } else if (setupIntent.status === 'requires_confirmation') {
+                    // We collected an account - possibly instantly verified, but possibly
+                    // manually-entered. Display payment method details and mandate text
+                    // to the customer and confirm the intent once they accept
+                    // the mandate.
+                    showMessage('requires_confirmation');
+                   // confirmationForm.show();
+                } else {
+                   showMessage(setupIntent.status+' => '+setupIntent.id);
+                }
         }
     }
-    function chargeCustomer() {
-        var customerObj = {
-            customerId: $("#CustomerId").val(),
-            paymentMethodType : $("#MethodType").val()
-        }
-        $.ajax({
-            url: '/api/stripe/chargeCustomer/',
-            type: 'post',
-            dataType: 'json',
-            contentType: 'application/json',
-            success: function (data) {
-                $('#message').html('');
-                console.log('chargeCustomer', data);
-                var responseInfo = data; //JSON.parse(data);
-                $('#message').html(responseInfo.response);
-            },
-            error: function (res) {
-                console.log('Something went wrong:' + res.statusText);
-            },
-            data: JSON.stringify(customerObj)
-        });
-    }
+
 </script>

@@ -1,0 +1,60 @@
+@{
+ViewData["Title"] = "Home Page";
+}
+
+<div class="text-center">
+    <h1 class="display-4">Stripe</h1>
+    <p>Capture card details for future use</p>
+
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="col-md-12 mt-5">
+            <input type="textbox" required id="CustomerId" class="form-control mb-4" placeholder="Customer Id">
+            <input type="textbox" required id="MandateId" class="form-control mb-4" placeholder="Mandate Id">
+            <select id="MethodType" class="form-select form-control mb-4" aria-label="Select card type">
+                <option selected value="card">Credit Card</option>
+                <option value="us_bank_account">ACH debit</option>
+                <option value="acss_debit">ACSS debit</option>
+            </select>
+            <button class="btn btn-primary btn-block" onclick="chargeCustomer();" type="submit">Charge Customer</button>
+
+        </div>
+        
+    </div>
+    <div class="col-md-4">
+    </div>
+</div>
+<div class="text-center">
+    <div id="message"></div>
+</div>
+<script>
+    // Set your publishable key: remember to change this to your live publishable key in production
+    // See your keys here: https://dashboard.stripe.com/apikeys
+    const stripe = Stripe('pk_test_51GvxM1IkwjzpyJ7wgAWCxc1UDEsvL8O5xGbkXm7R623hssinpHv4PajeYeEVXHctKTSVDP9uliSymLKALL4c9Key00K06pMeYK');
+    
+    function chargeCustomer() {
+        var customerObj = {
+            customerId: $("#CustomerId").val(),
+            paymentMethodType: $("#MethodType").val(),
+            mandateId: $("#MandateId").val()
+        }
+        $.ajax({
+            url: '/api/stripe/chargeCustomer/',
+            type: 'post',
+            dataType: 'json',
+            contentType: 'application/json',
+            success: function (data) {
+                $('#message').html('');
+                console.log('chargeCustomer', data);
+                var responseInfo = data; //JSON.parse(data);
+                $('#message').html(responseInfo.response);
+            },
+            error: function (res) {
+                console.log('Something went wrong:' + res.statusText);
+            },
+            data: JSON.stringify(customerObj)
+        });
+    }
+</script>
