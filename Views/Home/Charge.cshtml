@@ -30,11 +30,9 @@ ViewData["Title"] = "Home Page";
     <div id="message"></div>
 </div>
 <script>
-    // Set your publishable key: remember to change this to your live publishable key in production
-    // See your keys here: https://dashboard.stripe.com/apikeys
-    const stripe = Stripe('pk_test_51GvxM1IkwjzpyJ7wgAWCxc1UDEsvL8O5xGbkXm7R623hssinpHv4PajeYeEVXHctKTSVDP9uliSymLKALL4c9Key00K06pMeYK');
     
     function chargeCustomer() {
+        
         var customerObj = {
             customerId: $("#CustomerId").val(),
             paymentMethodType: $("#MethodType").val(),

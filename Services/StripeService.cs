@@ -30,7 +30,13 @@ namespace StripeApp.Services
             }
             // Set your secret key. Remember to switch to your live secret key in production.
             // See your keys here: https://dashboard.stripe.com/apikeys
-            StripeConfiguration.ApiKey = stripeSettingsOptions.SecretKey;
+            if (setupIntentRequest.PaymentMethodType == "us_bank_account")
+            {
+                StripeConfiguration.ApiKey = stripeSettingsOptions.US_SecretKey;
+            } else
+            {
+                StripeConfiguration.ApiKey = stripeSettingsOptions.SecretKey;
+            }
             
             var options = new CustomerListPaymentMethodsOptions
             {
@@ -75,6 +81,20 @@ namespace StripeApp.Services
                             PaymentMethodTypes = new List<string> { setupIntentRequest.PaymentMethodType }
                         };
                     }
+                    else if (pm.Type == "us_bank_account"){
+                        paymentIntentCreateOptions = new PaymentIntentCreateOptions
+                        {
+                            Amount = 1999,
+                            PaymentMethodTypes = new List<string>
+                            {
+                              "us_bank_account"
+                            },
+                            PaymentMethod = pm.Id,
+                            Customer = setupIntentRequest.CustomerId,
+                            Confirm = true,
+                            Currency = "usd",
+                        };
+                    }
                     if (paymentIntentCreateOptions !=null)
                     {
                         var response = service.Create(paymentIntentCreateOptions);
@@ -96,7 +116,14 @@ namespace StripeApp.Services
         }
         public SetupIntentResponse SetupIntent(SetupIntentRequest setupIntentRequest)
         {
-            StripeConfiguration.ApiKey = stripeSettingsOptions.SecretKey;
+            if (setupIntentRequest.PaymentMethodType == "us_bank_account")
+            {
+                StripeConfiguration.ApiKey = stripeSettingsOptions.US_SecretKey;
+            }
+            else
+            {
+                StripeConfiguration.ApiKey = stripeSettingsOptions.SecretKey;
+            }
             if (string.IsNullOrEmpty(setupIntentRequest.CustomerId))
             {
                 CustomerCreateOptions customerCreateOptions = new CustomerCreateOptions
@@ -111,13 +138,23 @@ namespace StripeApp.Services
                 setupIntentRequest.CustomerId = customer.Id;
             }
 
-            var options = getSetupIntentCreateOptions(setupIntentRequest);
-            var service = new SetupIntentService();
-            SetupIntent setupIntent = service.Create(options);
-            SetupIntentResponse setupIntentResponseObj = new SetupIntentResponse();
-            setupIntentResponseObj.ClientSecret = setupIntent.ClientSecret;
-            return setupIntentResponseObj;
-
+            try { 
+                var options = getSetupIntentCreateOptions(setupIntentRequest);
+                var service = new SetupIntentService();
+                SetupIntent setupIntent = service.Create(options);
+                SetupIntentResponse setupIntentResponseObj = new SetupIntentResponse();
+                setupIntentResponseObj.ClientSecret = setupIntent.ClientSecret;
+                return setupIntentResponseObj;
+            }
+            catch (StripeException e)
+            {
+                throw new Exception("[SetupIntent] [Exception] [message] " + e.Message + " [StackTrace]" + e.StackTrace);// "Response:Something went wrong while charging customer => Stripe Error:" + e.StripeError + "=> StripeResponse: " + e.StripeResponse + "=> Message: " + e.Message;
+            }
+            catch (Exception ee)
+            {
+                throw new Exception("[SetupIntent] [Exception] [message] "+ee.Message+ " [StackTrace]" + ee.StackTrace);// "Response:Something went wrong while charging customer:" + ee.Message + " => " + ee.StackTrace;
+            }
+            return null;
         }
 
         public SetupIntentCreateOptions getSetupIntentCreateOptions(SetupIntentRequest setupIntentRequest)
