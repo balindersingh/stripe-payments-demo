@@ -61,6 +61,7 @@ ViewData["Title"] = "Home Page";
     <button id="acssbtn" style="display:none;" class="btn btn-primary btn-block" onclick="verifyACSSPaymentMethod();" type="submit">Close</button>
 
 </div>
+<div id="dialogMandate" style="display:none;" ></div>
 @if (ViewData["PublishableKey"] != null)
     {
         <script type="text/javascript">
@@ -242,26 +243,32 @@ ViewData["Title"] = "Home Page";
                     // the mandate.
                     //showMessage('requires_confirmation');
                     console.log('[requires_confirmation]');
-                    stripe.confirmUsBankAccountSetup(clientSecret)
-                    .then(({setupIntent, error}) => {
-                        console.log('[confirmUsBankAccountSetup] ',setupIntent);
-                        if (error) {
-                        console.error(error.message);
-                        // The payment failed for some reason.
-                        } else if (setupIntent.status === "requires_payment_method") {
-                        // Confirmation failed. Attempt again with a different payment method.
-                        } else if (setupIntent.status === "succeeded") {
-                        // Confirmation succeeded! The account is now saved.
-                        // Display a message to customer.
-                        } else if (setupIntent.next_action?.type === "verify_with_microdeposits") {
-                        // The account needs to be verified via microdeposits.
-                        // Display a message to consumer with next steps (consumer waits for
-                        // microdeposits, then enters a statement descriptor code on a page sent to them via email).
-                        } else if (setupIntent.next_action?.type === "succeeded") {
-                             console.log('Successfully setup the payment method');
-                             showMessage('Successfully setup the payment method');
-                        }
+                    dialogConfirm('By clicking yes, you are authorizing Idea Vouch to make debit or credit transaction in your Debit account', 'Do you agree').then(function() {
+                        stripe.confirmUsBankAccountSetup(clientSecret)
+                        .then(({setupIntent, error}) => {
+                            console.log('[confirmUsBankAccountSetup] ',setupIntent);
+                            if (error) {
+                            console.error(error.message);
+                            // The payment failed for some reason.
+                            } else if (setupIntent.status === "requires_payment_method") {
+                            // Confirmation failed. Attempt again with a different payment method.
+                            } else if (setupIntent.status === "succeeded") {
+                            // Confirmation succeeded! The account is now saved.
+                            // Display a message to customer.
+                            showMessage('Successfully setup the payment method');
+                            } else if (setupIntent.next_action?.type === "verify_with_microdeposits") {
+                            // The account needs to be verified via microdeposits.
+                            // Display a message to consumer with next steps (consumer waits for
+                            // microdeposits, then enters a statement descriptor code on a page sent to them via email).
+                            } else if (setupIntent.next_action?.type === "succeeded") {
+                                console.log('Successfully setup the payment method');
+                                showMessage('Successfully setup the payment method');
+                            }
+                        });
+                    }).catch(function() {
+                    console.log('[confirmUsBankAccountSetup] dialogConfirm catch');
                     });
+                    
                    // confirmationForm.show();
                 } else {
                    showMessage(setupIntent.status+' => '+setupIntent.id);
@@ -269,6 +276,25 @@ ViewData["Title"] = "Home Page";
         }
             
     }
+
+    function dialogConfirm(msg, title) {
+        return new Promise(function(resolve, reject) {
+            $('#dialogMandate').html(msg).dialog({
+            modal: true,
+            title: title,
+            buttons: {
+                'Yes': function() {
+                $(this).dialog("close");
+                resolve();
+                },
+                'No': function() {
+                $(this).dialog("close");
+                reject();
+                }
+            }
+            });
+        });
+        }
     async function verifyACSSPaymentMethod(){
         /// TODO - setup intent is already succeded
          event.preventDefault();

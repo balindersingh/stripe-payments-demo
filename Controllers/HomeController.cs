@@ -42,7 +42,7 @@ namespace StripeApp.Controllers
             return View();
         }
 
-        public IActionResult Capture()
+        public IActionResult SetupIntent()
         {
             ViewData[PUBLISHABLE_KEY_NAME] = stripeSettingsOptions.PublishableKey;
             ViewData[US_PUBLISHABLE_KEY_NAME] = stripeSettingsOptions.US_PublishableKey;
