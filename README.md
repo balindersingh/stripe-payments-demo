@@ -7,7 +7,7 @@
 * RedirectUrl : the url where this application will be hosted publicly so that stripe can use it as callback url
 ## Development notes
 * Let's start listening on 5000 port to ngrok endpoint (you can change it in settings files to listen on diffrent port)
-* ```./ngrok http 5000```
+* ```./ngrok http 5002```
 * Make sure you update Stripe settings appropriately in appsettings.json
 ## Build and run
 * Now you just need to run following command to see the application in action
