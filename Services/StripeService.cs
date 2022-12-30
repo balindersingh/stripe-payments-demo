@@ -49,7 +49,7 @@ namespace StripeApp.Services
             if(paymentmethods?.Data?.Count > 0)
             {
                 PaymentMethod pm = paymentmethods?.Data[0];
-                string responseMessage = "paymentmethod => " + pm;
+                string responseMessage = "";
                 try
                 {
                     var service = new PaymentIntentService();
@@ -100,7 +100,7 @@ namespace StripeApp.Services
                     if (paymentIntentCreateOptions !=null)
                     {
                         var response = service.Create(paymentIntentCreateOptions);
-                        responseMessage+= "<br/> Response:" + response.StripeResponse.Content;
+                        responseMessage = response.StripeResponse.Content;
                         return responseMessage;
                     }
                     return "Response: No payment method type found";

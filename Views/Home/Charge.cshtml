@@ -18,7 +18,7 @@ ViewData["Title"] = "Home Page";
                 <option value="us_bank_account">ACH debit</option>
                 <option value="acss_debit">ACSS debit</option>
             </select>
-            <button class="btn btn-primary btn-block" onclick="chargeCustomer();" type="submit">Charge Customer</button>
+            <button id="btnChargeCustomer" class="btn btn-primary btn-block" onclick="chargeCustomer();" type="submit">Charge Customer</button>
 
         </div>
         
@@ -29,8 +29,17 @@ ViewData["Title"] = "Home Page";
 <div class="text-center">
     <div id="message"></div>
 </div>
+@if (ViewData["PublishableKey"] != null)
+    {
+        <script type="text/javascript">
+            window.PUBLISHABLE_KEY = '@ViewData["PublishableKey"]';
+            window.US_PUBLISHABLE_KEY = '@ViewData["US_PublishableKey"]';
+        </script>
+    }
 <script>
-    
+    let stripe = Stripe(window.PUBLISHABLE_KEY);
+    let statusCheckIntervalId;
+    let paymentIntentClientSecret;
     function chargeCustomer() {
         
         var customerObj = {
@@ -47,12 +56,71 @@ ViewData["Title"] = "Home Page";
                 $('#message').html('');
                 console.log('chargeCustomer', data);
                 var responseInfo = data; //JSON.parse(data);
-                $('#message').html(responseInfo.response);
+                checkhPaymentIntentStatus(responseInfo.response);
             },
             error: function (res) {
                 console.log('Something went wrong:' + res.statusText);
             },
             data: JSON.stringify(customerObj)
         });
+    }
+    function initStripe(){
+        const paymentType =  $("#MethodType").val();
+        if(paymentType == "us_bank_account"){
+             stripe = Stripe(window.US_PUBLISHABLE_KEY);
+        } else {
+             stripe = Stripe(window.PUBLISHABLE_KEY);
+        }
+    }
+    function refreshPaymentIntentStatus(){
+        console.log('[refreshPaymentIntentStatus]');
+        stripe
+            .retrievePaymentIntent(paymentIntentClientSecret)
+            .then(function(result) {
+                if(result.paymentIntent){
+                    if(result.paymentIntent.status && result.paymentIntent.status == "processing"){
+                         paymentIntentClientSecret = result.paymentIntent.client_secret;
+                         setTimeout(refreshPaymentIntentStatus, 5000);
+                         processingAction(true);
+                    } else {
+                        console.log('success paymentIntent:',result.paymentIntent);
+                        $('#message').html(JSON.stringify(result.paymentIntent));
+                        processingAction(false);
+                    }
+                }
+                else if(result.error){
+                    console.log('error',result.error);
+                    processingAction(false);
+                 } else {
+                     console.log('something unknown');
+                     processingAction(false);
+                 }
+            });
+    }
+    function processingAction(isProcessing){
+        if(isProcessing){
+            $('#btnChargeCustomer').text('Processing');
+        } else {
+            $('#btnChargeCustomer').text('Charge customer');
+        }
+
+    }
+    function checkhPaymentIntentStatus(response){
+        if(response.indexOf('{') == 0){
+            let paymentIntentResponse = JSON.parse(response);
+            if(paymentIntentResponse.status && paymentIntentResponse.status == 'processing'){
+                initStripe();
+                paymentIntentClientSecret = paymentIntentResponse.client_secret;
+                setTimeout(refreshPaymentIntentStatus, 5000);
+                processingAction(true);
+            } else {
+                $('#message').html(paymentIntentResponse);
+                processingAction(false);
+            }
+        }  else {
+            $('#message').html(response);
+            processingAction(false);
+        }
+        
     }
 </script>
