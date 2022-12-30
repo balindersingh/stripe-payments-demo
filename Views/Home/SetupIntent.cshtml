@@ -34,7 +34,7 @@ ViewData["Title"] = "Home Page";
                     <!-- Elements will create form elements here -->
                 </div>
                 <button type="submit" onclick="submitForm();" id="submit">Submit</button>
-                <div id="error-message">
+                <div id="message">
                     <!-- Display error message to your customers here -->
                 </div>
             </form>
@@ -54,8 +54,10 @@ ViewData["Title"] = "Home Page";
     </div>
 </div>
 <div class="text-center">
-    <div id="message"></div>
+    <div id="messageAlert" role="alert">
+        </div>  
 </div>
+
 <div id="paymentDialog" style="display:none;" title="Payment confirmation">
     <div id="setupCompleteContainer"></div>
     <button id="acssbtn" style="display:none;" class="btn btn-primary btn-block" onclick="verifyACSSPaymentMethod();" type="submit">Close</button>
@@ -88,19 +90,10 @@ ViewData["Title"] = "Home Page";
     console.log('[PUBLISHABLE_KEY]',window.PUBLISHABLE_KEY);
     console.log('[US_PUBLISHABLE_KEY]',window.US_PUBLISHABLE_KEY);
     let stripe = Stripe(window.PUBLISHABLE_KEY);
-    //loadSecret();
     let baseUrl = '';
     let clientSecret;
     let stripeElement;
     let paymentElement;
-    function loadSecret() {
-        (async () => {
-            const response = await fetch('/api/stripe/getSecret');
-            let responseJson = await response.json();
-           loadPaymentElements(responseJson.setupIntentResponse.clientSecret);
-            // Render the form using the clientSecret
-        })();
-    }
     function createCustomerAndLoadForm() {
         let paymentMethodType = $("#MethodType").val();
         console.log('paymentMethodType', paymentMethodType);
@@ -122,6 +115,7 @@ ViewData["Title"] = "Home Page";
             },
             error: function (res) {
                 console.log('Something went wrong:'+res.statusText);
+                showMessage(res.statusText,'error');
             },
             data: JSON.stringify(customerObj)
         });
@@ -172,8 +166,7 @@ ViewData["Title"] = "Home Page";
                 // This point will only be reached if there is an immediate error when
                 // confirming the payment. Show error to your customer (for example, payment
                 // details incomplete)
-                const messageContainer = document.querySelector('#error-message');
-                messageContainer.textContent = error.message;
+                showMessage(error.message,'error');
             } else {
                 console.log('submitForm succes render setupcomplete page');
                 // renderStripeUI(baseUrl+'/Home/SetupComplete');
@@ -184,14 +177,38 @@ ViewData["Title"] = "Home Page";
         });
     }
 
-    function showMessage(message) {
+    function showMessage(message, variant) {
 
-        const messageContainer = document.querySelector('#error-message');
+        let alertElement = document.getElementById('messageAlert');
         if (message) {
-            messageContainer.textContent = message;
+            alertElement.className = 'alert '+getAlertClassByVariant(variant);
+            alertElement.innerHTML = message;
         } else {
-            messageContainer.textContent = '';
+            alertElement.innerHTML = '';
+            alertElement.className = '';
         }
+    }
+
+    function getAlertClassByVariant(variant){
+        if(variant){
+            switch(variant.toLowerCase()) {
+            case 'error':
+                // code block
+                return 'alert-danger';
+                break;
+            case 'success':
+                // code block
+                return 'alert-success';
+                break;
+            case 'info':
+            // code block
+            return 'alert-info';
+            break;
+            default:
+                return '';
+            }
+        }
+        return '';
     }
 
     async function loadACHForm(clientSecret, customerName, emailAddress) {
@@ -213,7 +230,7 @@ ViewData["Title"] = "Home Page";
                if (response.error) {
             // Inform the customer that there was an error.
             console.log(error.message);
-            $('#message').html(error.message);
+            showMessage(error.message,'error');
         } else {
             // Handle next step based on SetupIntent's status.
             console.log("SetupIntent ID: " + response.setupIntent.id);
@@ -228,12 +245,12 @@ ViewData["Title"] = "Home Page";
                     $('#acssbtn').show();
                     document.getElementById('acssbtn').setAttribute('data-clientsecret',clientSecret);
                 }else {
-                     showMessage('requires_action something went wrong');
+                     showMessage('requires_action something went wrong','error');
                 }
 
             }
              else   if (setupIntent.status === 'requires_payment_method') {
-                    showMessage('requires_payment_method');
+                    showMessage('requires_payment_method','error');
                     // Customer canceled the hosted verification modal. Present them with other
                     // payment method type options.
                 } else if (setupIntent.status === 'requires_confirmation') {
@@ -242,7 +259,8 @@ ViewData["Title"] = "Home Page";
                     // to the customer and confirm the intent once they accept
                     // the mandate.
                     //showMessage('requires_confirmation');
-                    console.log('[requires_confirmation]');
+                    console.log('[requires_confirmation] [setupIntent]');
+                    console.log(setupIntent);
                     dialogConfirm('By clicking yes, you are authorizing Idea Vouch to make debit or credit transaction in your Debit account', 'Do you agree').then(function() {
                         stripe.confirmUsBankAccountSetup(clientSecret)
                         .then(({setupIntent, error}) => {
@@ -255,14 +273,18 @@ ViewData["Title"] = "Home Page";
                             } else if (setupIntent.status === "succeeded") {
                             // Confirmation succeeded! The account is now saved.
                             // Display a message to customer.
-                            showMessage('Successfully setup the payment method');
+                            showMessage('Successfully setup the payment method','success');
                             } else if (setupIntent.next_action?.type === "verify_with_microdeposits") {
                             // The account needs to be verified via microdeposits.
                             // Display a message to consumer with next steps (consumer waits for
                             // microdeposits, then enters a statement descriptor code on a page sent to them via email).
+                                let stripeUrl = setupIntent.next_action.verify_with_microdeposits.hosted_verification_url
+                                renderStripeUI(stripeUrl);
+                                $('#acssbtn').show();
+                                document.getElementById('acssbtn').setAttribute('data-clientsecret',clientSecret);
                             } else if (setupIntent.next_action?.type === "succeeded") {
                                 console.log('Successfully setup the payment method');
-                                showMessage('Successfully setup the payment method');
+                                showMessage('Successfully setup the payment method','success');
                             }
                         });
                     }).catch(function() {
@@ -271,7 +293,7 @@ ViewData["Title"] = "Home Page";
                     
                    // confirmationForm.show();
                 } else {
-                   showMessage(setupIntent.status+' => '+setupIntent.id);
+                   showMessage(setupIntent.status+' => '+setupIntent.id,'info');
                 }
         }
             
@@ -309,7 +331,7 @@ ViewData["Title"] = "Home Page";
         if (response.error) {
 
             console.log(response.error.message);
-            $('#message').html(error.message);
+            showMessage(error.message,'error');
         }else {
             console.log("[verifyACSSPaymentMethod] SetupIntent status: " + response.setupIntent.status);
             console.log(response.setupIntent);
@@ -331,7 +353,7 @@ ViewData["Title"] = "Home Page";
         if (response.error) {
             // Inform the customer that there was an error.
             console.log(error.message);
-            $('#message').html(error.message);
+            showMessage(error.message,'error');
         } else {
             // Handle next step based on SetupIntent's status.
             console.log("SetupIntent ID: " + response.setupIntent.id);
@@ -346,12 +368,12 @@ ViewData["Title"] = "Home Page";
                     $('#acssbtn').show();
                     document.getElementById('acssbtn').setAttribute('data-clientsecret',clientSecret);
                 }else {
-                     showMessage('requires_action something went wrong');
+                     showMessage('requires_action something went wrong','error');
                 }
 
             }
              else   if (setupIntent.status === 'requires_payment_method') {
-                    showMessage('requires_payment_method');
+                    showMessage('requires_payment_method','error');
                     // Customer canceled the hosted verification modal. Present them with other
                     // payment method type options.
                 } else if (setupIntent.status === 'requires_confirmation') {
@@ -359,10 +381,10 @@ ViewData["Title"] = "Home Page";
                     // manually-entered. Display payment method details and mandate text
                     // to the customer and confirm the intent once they accept
                     // the mandate.
-                    showMessage('requires_confirmation');
+                    showMessage('requires_confirmation','error');
                    // confirmationForm.show();
                 } else {
-                   showMessage(setupIntent.status+' => '+setupIntent.id);
+                   showMessage(setupIntent.status+' => '+setupIntent.id,'info');
                 }
         }
     }

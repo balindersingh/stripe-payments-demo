@@ -60,13 +60,15 @@ namespace StripeApp.Services
                         {
                             Amount = 1999,
                             Currency = "cad",
-                            Mandate = setupIntentRequest.MandateId,
                             Customer = setupIntentRequest.CustomerId,
                             PaymentMethod = pm.Id,
                             Confirm = true,
                             OffSession = true,
                             PaymentMethodTypes = new List<string> { setupIntentRequest.PaymentMethodType }
                         };
+                        if(!string.IsNullOrEmpty(setupIntentRequest.MandateId)){
+                            paymentIntentCreateOptions.Mandate = setupIntentRequest.MandateId;
+                        }
                     }
                     else if (pm.Type == "card")
                     {
