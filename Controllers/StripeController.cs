@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -8,6 +9,7 @@ using Newtonsoft.Json;
 using Microsoft.AspNetCore.Cors;
 using StripeApp.Models;
 using StripeApp.Services;
+using Stripe;
 
 namespace StripeApp.Controllers
 {
@@ -67,6 +69,24 @@ namespace StripeApp.Controllers
         {
             string response = (new StripeService(this.configuration)).ChargeCustomer(setupIntentRequest);
             return new JsonResult(new { response = response });
+        }
+        // POST api/stripe/webhook
+        [Route("[action]")]
+        [HttpPost]
+        public async Task<IActionResult> webhook()
+        {
+             Console.WriteLine("[webhook] starts...");
+            try
+            {
+                 var json = await new StreamReader(HttpContext.Request.Body).ReadToEndAsync();
+                bool response = (new StripeService(this.configuration)).handleWebhook(json, Request.Headers["Stripe-Signature"]);
+                return new JsonResult(new { response = response });
+            }
+            catch (StripeException e)
+            {
+                 Console.WriteLine("[webhook] Exception: {0}", e.Message);
+                return BadRequest();
+            }
         }
     }
 }

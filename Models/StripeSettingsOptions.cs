@@ -15,5 +15,7 @@ namespace StripeApp.Models
         public string US_SecretKey { get; set; } = String.Empty;
 
         public string RedirectUrl { get; set; } = String.Empty;
+
+        public string WebhookSecret  { get; set; } = String.Empty;
     }
 }

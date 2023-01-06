@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -21,6 +22,32 @@ namespace StripeApp.Services
             this.configuration = configuration;
             stripeSettingsOptions = new StripeSettingsOptions();
             this.configuration.GetSection(StripeSettingsOptions.StripeSettings).Bind(stripeSettingsOptions);
+        }
+
+        public bool handleWebhook(string jsonBody, string headerSignature)
+        {
+             Console.WriteLine("[handleWebhook] starts...");
+             string endpointSecret = stripeSettingsOptions.WebhookSecret;
+            Console.WriteLine("[handleWebhook] endpointSecret: {0}", endpointSecret);
+            var stripeEvent = EventUtility.ConstructEvent(jsonBody,
+                headerSignature, endpointSecret);
+
+            // Handle the event
+            if (stripeEvent.Type == Events.PaymentIntentPaymentFailed)
+            {
+                Console.WriteLine("[handleWebhook] Failed event type: {0}", stripeEvent.Type);
+            }
+            else if (stripeEvent.Type == Events.PaymentIntentSucceeded)
+            {
+                Console.WriteLine("[handleWebhook] Succeded event type: {0}", stripeEvent.Type);
+            }
+            // ... handle other event types
+            else
+            {
+                Console.WriteLine("[handleWebhook] Unhandled event type: {0}", stripeEvent.Type);
+            }
+            Console.WriteLine("[handleWebhook] ends.");
+            return true;
         }
         public string ChargeCustomer(SetupIntentRequest setupIntentRequest)
         {
