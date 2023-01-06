@@ -10,8 +10,16 @@ namespace StripeApp.Models
     {
         [JsonProperty("customerName")]
         public string CustomerName { get; set; }
+        [JsonProperty("customerEmail")]
+        public string CustomerEmail { get; set; }
         [JsonProperty("customerId")]
         public string CustomerId { get; set; }
+
+        [JsonProperty("paymentMethodType")]
+        public string PaymentMethodType { get; set; }
+
+        [JsonProperty("mandateId")]
+        public string MandateId { get; set; }
 
     }
 }

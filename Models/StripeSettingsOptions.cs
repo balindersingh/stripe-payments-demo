@@ -9,7 +9,13 @@ namespace StripeApp.Models
     {
         public const string StripeSettings = "StripeSettings";
 
+        public string PublishableKey { get; set; } = String.Empty;
         public string SecretKey { get; set; } = String.Empty;
+        public string US_PublishableKey { get; set; } = String.Empty;
+        public string US_SecretKey { get; set; } = String.Empty;
+
         public string RedirectUrl { get; set; } = String.Empty;
+
+        public string WebhookSecret  { get; set; } = String.Empty;
     }
 }

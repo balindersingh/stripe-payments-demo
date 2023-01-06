@@ -1,4 +1,5 @@
 ﻿using System;
+using System.IO;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -22,6 +23,32 @@ namespace StripeApp.Services
             stripeSettingsOptions = new StripeSettingsOptions();
             this.configuration.GetSection(StripeSettingsOptions.StripeSettings).Bind(stripeSettingsOptions);
         }
+
+        public bool handleWebhook(string jsonBody, string headerSignature)
+        {
+             Console.WriteLine("[handleWebhook] starts...");
+             string endpointSecret = stripeSettingsOptions.WebhookSecret;
+            Console.WriteLine("[handleWebhook] endpointSecret: {0}", endpointSecret);
+            var stripeEvent = EventUtility.ConstructEvent(jsonBody,
+                headerSignature, endpointSecret);
+
+            // Handle the event
+            if (stripeEvent.Type == Events.PaymentIntentPaymentFailed)
+            {
+                Console.WriteLine("[handleWebhook] Failed event type: {0}", stripeEvent.Type);
+            }
+            else if (stripeEvent.Type == Events.PaymentIntentSucceeded)
+            {
+                Console.WriteLine("[handleWebhook] Succeded event type: {0}", stripeEvent.Type);
+            }
+            // ... handle other event types
+            else
+            {
+                Console.WriteLine("[handleWebhook] Unhandled event type: {0}", stripeEvent.Type);
+            }
+            Console.WriteLine("[handleWebhook] ends.");
+            return true;
+        }
         public string ChargeCustomer(SetupIntentRequest setupIntentRequest)
         {
             if (string.IsNullOrEmpty(setupIntentRequest?.CustomerId))
@@ -30,40 +57,80 @@ namespace StripeApp.Services
             }
             // Set your secret key. Remember to switch to your live secret key in production.
             // See your keys here: https://dashboard.stripe.com/apikeys
-            StripeConfiguration.ApiKey = stripeSettingsOptions.SecretKey;
-
-            var pmoptions = new PaymentMethodListOptions
+            if (setupIntentRequest.PaymentMethodType == "us_bank_account")
             {
-                Customer = setupIntentRequest.CustomerId,
-                Type = "card",
-                
-            };
+                StripeConfiguration.ApiKey = stripeSettingsOptions.US_SecretKey;
+            } else
+            {
+                StripeConfiguration.ApiKey = stripeSettingsOptions.SecretKey;
+            }
+            
             var options = new CustomerListPaymentMethodsOptions
             {
-                Type = "card",
+                Type = setupIntentRequest.PaymentMethodType,
 
             };
-            var pmservice = new PaymentMethodService();
             var customerService = new CustomerService();
             StripeList<PaymentMethod> paymentmethods = customerService.ListPaymentMethods(setupIntentRequest.CustomerId, options);
            // StripeList<PaymentMethod> paymentmethods = pmservice.List(options);
             if(paymentmethods?.Data?.Count > 0)
             {
                 PaymentMethod pm = paymentmethods?.Data[0];
+                string responseMessage = "";
                 try
                 {
                     var service = new PaymentIntentService();
-                    var paymentIntentCreateOptions = new PaymentIntentCreateOptions
+                    PaymentIntentCreateOptions paymentIntentCreateOptions = null;
+                    if (pm.Type == "acss_debit")
                     {
-                        Amount = 1099,
-                        Currency = "cad",
-                        Customer = setupIntentRequest.CustomerId,
-                        PaymentMethod = pm.Id,
-                        Confirm = true,
-                        OffSession = true,
-                    };
-                    var response = service.Create(paymentIntentCreateOptions);
-                    return "Response:" + response.StripeResponse.Content;
+                        paymentIntentCreateOptions = new PaymentIntentCreateOptions
+                        {
+                            Amount = 1999,
+                            Currency = "cad",
+                            Customer = setupIntentRequest.CustomerId,
+                            PaymentMethod = pm.Id,
+                            Confirm = true,
+                            OffSession = true,
+                            PaymentMethodTypes = new List<string> { setupIntentRequest.PaymentMethodType }
+                        };
+                        if(!string.IsNullOrEmpty(setupIntentRequest.MandateId)){
+                            paymentIntentCreateOptions.Mandate = setupIntentRequest.MandateId;
+                        }
+                    }
+                    else if (pm.Type == "card")
+                    {
+                        paymentIntentCreateOptions = new PaymentIntentCreateOptions
+                        {
+                            Amount = 1999,
+                            Currency = "cad",
+                            Customer = setupIntentRequest.CustomerId,
+                            PaymentMethod = pm.Id,
+                            Confirm = true,
+                            OffSession = true,
+                            PaymentMethodTypes = new List<string> { setupIntentRequest.PaymentMethodType }
+                        };
+                    }
+                    else if (pm.Type == "us_bank_account"){
+                        paymentIntentCreateOptions = new PaymentIntentCreateOptions
+                        {
+                            Amount = 1999,
+                            PaymentMethodTypes = new List<string>
+                            {
+                              "us_bank_account"
+                            },
+                            PaymentMethod = pm.Id,
+                            Customer = setupIntentRequest.CustomerId,
+                            Confirm = true,
+                            Currency = "usd",
+                        };
+                    }
+                    if (paymentIntentCreateOptions !=null)
+                    {
+                        var response = service.Create(paymentIntentCreateOptions);
+                        responseMessage = response.StripeResponse.Content;
+                        return responseMessage;
+                    }
+                    return "Response: No payment method type found";
                 }
                 catch (StripeException e)
                 {
@@ -78,28 +145,104 @@ namespace StripeApp.Services
         }
         public SetupIntentResponse SetupIntent(SetupIntentRequest setupIntentRequest)
         {
-            StripeConfiguration.ApiKey = stripeSettingsOptions.SecretKey;
+            if (setupIntentRequest.PaymentMethodType == "us_bank_account")
+            {
+                StripeConfiguration.ApiKey = stripeSettingsOptions.US_SecretKey;
+            }
+            else
+            {
+                StripeConfiguration.ApiKey = stripeSettingsOptions.SecretKey;
+            }
             if (string.IsNullOrEmpty(setupIntentRequest.CustomerId))
             {
                 CustomerCreateOptions customerCreateOptions = new CustomerCreateOptions
                 {
-                    Description = string.IsNullOrEmpty(setupIntentRequest.CustomerName) ? "Customer " + DateTime.Now.ToString("yyyyMMddhhmmss") : setupIntentRequest.CustomerName
+                    Name = string.IsNullOrEmpty(setupIntentRequest.CustomerName) ? "Customer " + DateTime.Now.ToString("yyyyMMddhhmmss") : setupIntentRequest.CustomerName
                 };
+                if (!string.IsNullOrEmpty(setupIntentRequest.CustomerEmail))
+                {
+                    customerCreateOptions.Email = setupIntentRequest.CustomerEmail;
+                }
                 Customer customer = CreateCustomer(customerCreateOptions);
                 setupIntentRequest.CustomerId = customer.Id;
             }
 
-            var options = new SetupIntentCreateOptions
+            try { 
+                var options = getSetupIntentCreateOptions(setupIntentRequest);
+                var service = new SetupIntentService();
+                SetupIntent setupIntent = service.Create(options);
+                SetupIntentResponse setupIntentResponseObj = new SetupIntentResponse();
+                setupIntentResponseObj.ClientSecret = setupIntent.ClientSecret;
+                return setupIntentResponseObj;
+            }
+            catch (StripeException e)
             {
-                Customer = setupIntentRequest.CustomerId,
-                PaymentMethodTypes = new List<string> { "card"},
-            };
-            var service = new SetupIntentService();
-            SetupIntent setupIntent = service.Create(options);
-            SetupIntentResponse setupIntentResponseObj = new SetupIntentResponse();
-            setupIntentResponseObj.ClientSecret = setupIntent.ClientSecret;
-            return setupIntentResponseObj;
+                throw new Exception("[SetupIntent] [Exception] [message] " + e.Message + " [StackTrace]" + e.StackTrace);// "Response:Something went wrong while charging customer => Stripe Error:" + e.StripeError + "=> StripeResponse: " + e.StripeResponse + "=> Message: " + e.Message;
+            }
+            catch (Exception ee)
+            {
+                throw new Exception("[SetupIntent] [Exception] [message] "+ee.Message+ " [StackTrace]" + ee.StackTrace);// "Response:Something went wrong while charging customer:" + ee.Message + " => " + ee.StackTrace;
+            }
+            return null;
+        }
 
+        public SetupIntentCreateOptions getSetupIntentCreateOptions(SetupIntentRequest setupIntentRequest)
+        {
+            if (setupIntentRequest.PaymentMethodType == "card")
+            {
+                return new SetupIntentCreateOptions
+                {
+                    Customer = setupIntentRequest.CustomerId,
+                    PaymentMethodTypes = new List<string> { "card" },
+                };
+            }
+            else if (setupIntentRequest.PaymentMethodType == "us_bank_account")
+            {
+                return new SetupIntentCreateOptions
+                {
+                    Customer = setupIntentRequest.CustomerId,
+                    PaymentMethodTypes = new List<string> { "us_bank_account" }
+                };
+            }
+            else if (setupIntentRequest.PaymentMethodType == "acss_debit")
+            {
+                return new SetupIntentCreateOptions
+                {
+                    Customer = setupIntentRequest.CustomerId,
+                    PaymentMethodTypes = new List<string> { "acss_debit" },
+                    PaymentMethodOptions = new SetupIntentPaymentMethodOptionsOptions
+                    {
+                        AcssDebit = new SetupIntentPaymentMethodOptionsAcssDebitOptions
+                        {
+                            Currency = "cad",
+                            MandateOptions = new SetupIntentPaymentMethodOptionsAcssDebitMandateOptionsOptions
+                            {
+                                PaymentSchedule = "sporadic",
+                                TransactionType = "personal",
+                            },
+                        },
+                    },
+                };
+            }
+            else if (setupIntentRequest.PaymentMethodType == "achdebit_expanded")
+            {
+                return new SetupIntentCreateOptions
+                {
+                    Customer = setupIntentRequest.CustomerId,
+                    PaymentMethodTypes = new List<string> { "us_bank_account" },
+                    PaymentMethodOptions = new SetupIntentPaymentMethodOptionsOptions
+                    {
+                        UsBankAccount = new SetupIntentPaymentMethodOptionsUsBankAccountOptions
+                        {
+                            FinancialConnections = new SetupIntentPaymentMethodOptionsUsBankAccountFinancialConnectionsOptions
+                            {
+                                Permissions = new List<string> { "payment_method", "balances" },
+                            },
+                        },
+                    },
+                };
+            }
+            return null;
         }
         public PaymentResponse createPayment(CardInfo cardInfo)
         {
